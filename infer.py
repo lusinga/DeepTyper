@@ -11,6 +11,7 @@ import cntk as C
 import re
 import string
 import time
+import gc
 
 #C.device.try_set_default_device(C.device.cpu())
 
@@ -34,11 +35,17 @@ target_dict = {target_wl[i]:i for i in range(len(target_wl))}
 # number of words in vocab, slot labels, and intent labels
 vocab_size = len(source_dict)
 num_labels = len(target_dict)
-epoch_size = 17.955*1000*1000
-minibatch_size = 5000
+#epoch_size = 17.955*1000*1000
+#epoch_size = 17.955*1000*1000
+#epoch_size = 896479
+epoch_size = 4886958
+#minibatch_size = 5000
+minibatch_size = 50000
 emb_dim = 300
 hidden_dim = 650
 num_epochs = 10
+
+model_file = "models/deeptype.cntk"
 
 # Create the containers for input feature (x) and the label (y)
 x = C.sequence.input_variable(vocab_size, name="x")
@@ -98,9 +105,13 @@ def enhance_data(data, enc):
 			inp = int(inputs[i][j])
 			ts.append(table[inp])
 		tables.append(np.array(np.float32(ts)))
+		#print(tables)
 	s = C.io.MinibatchSourceFromData(dict(t=(tables, C.layers.typing.Sequence[C.layers.typing.tensor])))
 	mems = s.next_minibatch(minibatch_size)
 	data[t] = mems[s.streams['t']]
+	del guesses
+	gc.collect()
+
 
 def create_trainer():
 	masked_dec = dec*C.ops.clip(C.ops.argmax(y), 0, 1)
@@ -117,6 +128,7 @@ def create_trainer():
 
 	progress_printer = C.logging.ProgressPrinter(tag='Training', num_epochs=num_epochs)
 	trainer = C.Trainer(dec, (loss, label_error), learner, progress_printer)
+	#trainer.restore_from_checkpoint(model_file)
 	C.logging.log_number_of_parameters(dec)
 	return trainer
 
@@ -126,7 +138,7 @@ def create_reader(path, is_training):
 			slot_labels	= C.io.StreamDef(field='S1', shape=num_labels, is_sparse=True)
 	)), randomize=is_training, max_sweeps = C.io.INFINITELY_REPEAT if is_training else 1)
 
-def validate():
+def validate(trainer):
 	valid_reader = create_reader(files['valid']['file'], is_training=False)
 	while True:
 		data = valid_reader.next_minibatch(minibatch_size, input_map={
@@ -139,7 +151,7 @@ def validate():
 		trainer.test_minibatch(data)
 	trainer.summarize_test_progress()
 
-def evaluate():
+def evaluate(trainer):
 	test_reader = create_reader(files['test']['file'], is_training=False)
 	while True:
 		data = test_reader.next_minibatch(minibatch_size, input_map={
@@ -159,8 +171,10 @@ def train():
 	step = 0
 	pp = C.logging.ProgressPrinter(freq=10, tag='Training')
 	for epoch in range(num_epochs):
+		trainer = create_trainer()
 		epoch_end = (epoch+1) * epoch_size
 		while step < epoch_end:
+			#print('step=%d' % step)
 			data = train_reader.next_minibatch(minibatch_size, input_map={
 				x: train_reader.streams.source,
 				y: train_reader.streams.slot_labels
@@ -171,12 +185,23 @@ def train():
 			trainer.train_minibatch(data)
 			pp.update_with_trainer(trainer, with_metric=True)
 			step += data[y].num_samples
+			
 		pp.epoch_summary(with_metric=True)
-		trainer.save_checkpoint("models/model-" + str(epoch + 1) + ".cntk")
-		validate()
-		evaluate()
+		# trainer.save_checkpoint("models/model-" + str(epoch + 1) + ".cntk")
+		trainer.save_checkpoint(model_file)
+		del trainer
+		gc.collect()
+		trainer = create_trainer()
+		validate(trainer)
+		del trainer
+		gc.collect()
+		trainer = create_trainer()
+		evaluate(trainer)
+		del trainer
+		gc.collect()
 
+C.cntk_py.set_gpumemory_allocation_trace_level(1)
 model = create_model()
 enc, dec = model(x, t)
-trainer = create_trainer()
+# trainer = create_trainer()
 train()
