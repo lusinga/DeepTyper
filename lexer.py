@@ -6,9 +6,9 @@ random.seed(42)
 
 data_dir = "data/"
 in_dir = data_dir + "outputs-all/"
-min_source_vocab = 10
-min_target_vocab = 10
-minibatchMaxSize = 5000
+min_source_vocab = 1
+min_target_vocab = 1
+minibatchMaxSize = 2000
 # For debugging: set to the fraction of projects to include for shorter training (1 means keep all)
 fraction = 1
 include_JS = False
@@ -22,6 +22,7 @@ for file in os.listdir(in_dir):
 	file_count += 1
 
 tenth = file_count//10
+print('tenth = %d' % tenth)
 indices = list(range(file_count))
 random.shuffle(indices)
 train_indices = indices[:(8*len(indices))//10]
@@ -57,29 +58,39 @@ for file in os.listdir(in_dir):
 	print("Processing %d: %s" % (file_count, file))
 	with open(in_dir + "/" + file, "r", encoding="utf-8") as f:
 		content = [line.strip() for line in f]
+		print('content = %s' % content)
 		for ix, line in enumerate(content):
 			if len(line) == 0:
+				print("line is 0")
 				continue
 			parts = line.split("\t")
 			if len(parts) < 2:
+				print('parts = %s' % parts)
 				continue
 			source_tokens = ["<s>"] + parts[0].split(' ') + ["</s>"]
 			target_tokens = ["O"] + parts[1].split(' ') + ["O"]
 			if source_tokens[1] == "'js'" and not include_JS:
+				print('Found js!')
 				continue
 			if len(source_tokens) != len(target_tokens):
 				print("Different lengths at line %d!" % ix)
 				print("%d, %d" % (len(source_tokens), len(target_tokens)))
 				break
 			if len(source_tokens) > minibatchMaxSize:
+				print('source tokens excced minibatch max size!')
 				continue
 			if file_count in train_indices:
+				print('train:')
 				train_sources.append(source_tokens)
 				train_targets.append(target_tokens)
+				print(train_sources)
+				print(train_targets)
 			elif file_count in valid_indices:
+				print("valid:")
 				valid_sources.append(source_tokens)
 				valid_targets.append(target_tokens)
 			elif file_count in test_indices:
+				print('test:')
 				test_sources.append(source_tokens)
 				test_targets.append(target_tokens)
 	file_count += 1
@@ -103,11 +114,16 @@ for target in train_targets:
 	for t in target:
 		target_counts[t] = target_counts.get(t, 0) + 1
 
+print(source_counts)
+print(target_counts)
+
 source_words = sorted(source_counts.items(), key=lambda x : x[1], reverse=True)
 source_cutoff = 0
 for ix, (_, count) in enumerate(source_words):
 	source_cutoff = ix
 	if count < min_source_vocab:
+		print(count)
+		print('is less than min_source_vocab')
 		break
 source_words = source_words[:source_cutoff]
 source_word_vocab = set([word for word, _ in source_words])

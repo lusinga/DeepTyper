@@ -38,9 +38,11 @@ num_labels = len(target_dict)
 #epoch_size = 17.955*1000*1000
 #epoch_size = 17.955*1000*1000
 #epoch_size = 896479
-epoch_size = 4886958
+epoch_size = 3637293
+#epoch_size = 100000
+# minibatch_size should be the same as lexer.py
 #minibatch_size = 5000
-minibatch_size = 50000
+minibatch_size = 2000
 emb_dim = 300
 hidden_dim = 650
 num_epochs = 10
@@ -108,9 +110,9 @@ def enhance_data(data, enc):
 		#print(tables)
 	s = C.io.MinibatchSourceFromData(dict(t=(tables, C.layers.typing.Sequence[C.layers.typing.tensor])))
 	mems = s.next_minibatch(minibatch_size)
+	#print(mems)
+	# print(data)
 	data[t] = mems[s.streams['t']]
-	del guesses
-	gc.collect()
 
 
 def create_trainer():
@@ -128,7 +130,7 @@ def create_trainer():
 
 	progress_printer = C.logging.ProgressPrinter(tag='Training', num_epochs=num_epochs)
 	trainer = C.Trainer(dec, (loss, label_error), learner, progress_printer)
-	#trainer.restore_from_checkpoint(model_file)
+	trainer.restore_from_checkpoint(model_file)
 	C.logging.log_number_of_parameters(dec)
 	return trainer
 
@@ -173,12 +175,15 @@ def train():
 	for epoch in range(num_epochs):
 		trainer = create_trainer()
 		epoch_end = (epoch+1) * epoch_size
+		print('epoch_end=%d' % epoch_end)
 		while step < epoch_end:
-			#print('step=%d' % step)
+			# print('step=%d' % step)
 			data = train_reader.next_minibatch(minibatch_size, input_map={
 				x: train_reader.streams.source,
 				y: train_reader.streams.slot_labels
 			})
+			# print("data=")
+			# print(data)
 			# Enhance data
 			enhance_data(data, enc)
 			# Train model
@@ -189,18 +194,18 @@ def train():
 		pp.epoch_summary(with_metric=True)
 		# trainer.save_checkpoint("models/model-" + str(epoch + 1) + ".cntk")
 		trainer.save_checkpoint(model_file)
-		del trainer
-		gc.collect()
-		trainer = create_trainer()
+		#del trainer
+		#gc.collect()
+		#trainer = create_trainer()
 		validate(trainer)
-		del trainer
-		gc.collect()
-		trainer = create_trainer()
+		#del trainer
+		#gc.collect()
+		#trainer = create_trainer()
 		evaluate(trainer)
-		del trainer
-		gc.collect()
+		#del trainer
+		#gc.collect()
 
-C.cntk_py.set_gpumemory_allocation_trace_level(1)
+#C.cntk_py.set_gpumemory_allocation_trace_level(1)
 model = create_model()
 enc, dec = model(x, t)
 # trainer = create_trainer()

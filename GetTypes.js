@@ -19,13 +19,13 @@ var templateKinds = [
     ts.SyntaxKind.LastTemplateToken,
     ts.SyntaxKind.TemplateMiddle
 ];
-try {
+/*try {
     fs.mkdirSync(outputDirGold);
     fs.mkdirSync(outputDirAll);
     fs.mkdirSync(outputDirCheckJS);
 }
 catch (err) {
-}
+}*/
 let root = "data/Repos-cleaned";
 let outputDirGold = "data/outputs-gold/";
 let outputDirAll = "data/outputs-all/";
@@ -36,6 +36,7 @@ try {
     fs.mkdirSync(outputDirCheckJS);
 }
 catch (err) {
+    console.log(err);
 }
 const ANY_THRESHOLD = 0.2;
 fs.readdirSync(root).forEach(org => fs.readdirSync(root + "/" + org).forEach(project => traverseProject(org, project)));
@@ -98,7 +99,8 @@ function extractAlignedSequences(inputDirectory) {
 		checker = program.getTypeChecker();
     }
 	catch (err) {
-		return null;
+        console.log(err);
+        return null;
 	}
     let fileContents = [[], [], []];
     for (const sourceFile of program.getSourceFiles()) {
